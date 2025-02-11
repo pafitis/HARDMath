@@ -1,0 +1,20 @@
+global_params:
+  model_id: "meta-llama/Llama-3.1-8B-Instruct"
+  use_cuda: True
+sft_params:
+  lr: 1e-5
+  save_steps: 50
+  weight_decay: 0.001
+  dropout: 0.01
+  optim: 'Adam'
+rl_params:
+  training_epochs: 1000
+  max_sequence_length: 2048
+lora_params: 
+  r: 8
+  lora_alpha: 16
+  lora_dropout: 0.05
+  target_modules: ['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj']
+  init_lora_weights: "pissa" # Lookup PISSA; converges more rapidly; OLoRA?
+  task_type: "CAUSAL_LM"
+  bias: "none"
