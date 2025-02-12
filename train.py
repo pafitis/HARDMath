@@ -8,10 +8,12 @@ from peft import LoraConfig
 import re
 import yaml
 
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from datasets import load_dataset
 
 from utls.rl_utils import formating_reward_wrapper, correctness_reward_wrapper
+
+import wandb
 
 def main():
 
@@ -27,6 +29,14 @@ def main():
     with open('configs/keys.yaml') as f:
         keys = yaml.safe_load(f)
     
+    ## Weights and biases
+    wandb.login = keys.get('wandb_key')
+    run = wandb.init(
+        project='Llama31B_instruct_GRPO',
+        job_type='training',
+        anonymous='allow',
+    )
+
     ## Lora Config
     peft_config = LoraConfig(
         r=lora_params.get('r'),
@@ -68,19 +78,26 @@ def main():
     ## Load model, tokenizer, data
     tokenizer = AutoTokenizer.from_pretrained(
         global_params.get('model_id'),
-        padding_side='left'
-        )
+        padding_side='left',
+        device="auto",
+    )
+    
+    bnb_config = BitsAndBytesConfig(
+        load_in_8bit=True,
+    )
     model = AutoModelForCausalLM.from_pretrained(
         global_params.get('model_id'),
         torch_dtype=torch.bfloat16,
         device_map="auto",
-        token = keys.get('huggingface_key')
+        token = keys.get('huggingface_key'),
+        quantization_config=bnb_config,
+        device="auto"
     )
 
     tokenizer.pad_token_id = tokenizer.eos_token_id
     model.generation_config.pad_token_id = tokenizer.pad_token_id
 
-    training_dataset = load_dataset('csv', 'data/splits/training_dataset.csv')
+    training_dataset = load_dataset('pafitis/HARDMath_processed_validation')
 
     ## Set up GRPO Trainer
     GRPO_trainer = GRPOTrainer(
@@ -91,6 +108,8 @@ def main():
         args=grpo_config,
         peft_config=peft_config,
     )
+
+    wandb.finish()
 
 if __name__ == '__main__':
     # TODO: Write main wrapper

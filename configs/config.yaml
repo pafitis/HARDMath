@@ -26,9 +26,9 @@ grpo_params:
   learning_rate: 1e-6
   beta: 0.01 # Multiplicative factor for KL divergence; high divergence -> high sep between distributions
   num_train_epochs: 1 # TODO: replace for full run
-  num_generations: None # TODO: must be divisible by num_processes * per_device_train_batch_size
-  per_device_train_batch_size: None # TODO
-  gradient_accumulation_steps: 1 # TODO: defaults at 1
+  num_generations: 4 # TODO: must be divisible by num_processes * per_device_train_batch_size
+  per_device_train_batch_size: 2 # TODO
+  gradient_accumulation_steps: 8 # TODO: defaults at 1
   gradient_checkpointing: False # TODO: defaults at False, check if needed
   logging_steps: 10
   use_vllm: True # TODO: requires checking

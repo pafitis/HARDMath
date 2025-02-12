@@ -4,6 +4,7 @@ from datasets import load_dataset
 
 import yaml
 import re
+from huggingface_hub import login
 
 random.seed(1996)
 
@@ -11,6 +12,9 @@ with open('configs/config.yaml') as f:
     config = yaml.safe_load(f)
 
 data_params = config.get('data_params')
+
+with open('configs/keys.yaml') as f:
+    keys = yaml.safe_load(f)
 
 def format_question(question):
 
@@ -85,6 +89,12 @@ if __name__ == '__main__':
             .values())
         print('\nData split into train/test')
     if data_params.get('save'):
+
+        login(token=keys.get('huggingface_key'))
+
         train.to_csv('data/splits/training_dataset.csv')
         val.to_csv('data/splits/validation_dataset.csv')
+
+        train.push_to_hub('HARDMath_processed_training')
+        val.push_to_hub('HARDMath_processed_validation')
 

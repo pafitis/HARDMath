@@ -78,7 +78,7 @@ def formating_reward(completion, eos_token = '<|eot_id|>'):
     
     # Checks that \boxed does not appear in <think> </think>
         # (?:(?!\\boxed\{).)*
-    # Checks that $$\boxed{...} appears in <answer> </answer>
+    # Checks that $\boxed{...} appears in <answer> </answer>
     # incl. whitepsaces to match HARDMath format
         # \$\$\\boxed.*\}\$\$
     # Checks that thinking and answering parts are sep by new line
