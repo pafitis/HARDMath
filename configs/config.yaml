@@ -7,6 +7,7 @@ global_params:
   optim: 'Adam'
 data_params:
   run_clean_data: True
+  run_training_format: True
   run_split: True
   split_size: 0.1
   save: True
@@ -21,7 +22,7 @@ lora_params:
 grpo_params:
   output_dir: './llama31b_instruct_GRPO'
   huggingface_model_dir: 'llama31b_instruct_GRPO'
-  temperature: 0.9 # High temperature -> high randomness in completions
+  temperature: 0.6 # High temperature -> high randomness in completions; 
   learning_rate: 1e-6
   beta: 0.01 # Multiplicative factor for KL divergence; high divergence -> high sep between distributions
   num_train_epochs: 1 # TODO: replace for full run

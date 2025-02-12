@@ -87,7 +87,7 @@ def formating_reward(completion, eos_token = '<|eot_id|>'):
     prediction = completion[0]['content']
     
     pattern = (
-        r'^<think>(?:(?!\\boxed\{).)*</think>\n<answer>\$\$ \\boxed.*\} \$\$</answer>$'
+        r'^<think>(?:(?!\\boxed\{).)*</think>\n<answer>\$\\boxed.*\}\$</answer>$'
     )
     
     return rl_params.get('reward_format') if re.match(pattern, prediction, re.DOTALL) else 0.0
