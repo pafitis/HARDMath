@@ -10,20 +10,25 @@ data_params:
   run_split: True
   split_size: 0.1
   save: True
-rl_params:
-  training_epochs: 1000
-  max_sequence_length: 2048
-  lr: 1e-6
-  reward_format: 1.0
-  beta:
-  temperature:
-
-
 lora_params: 
   r: 8
   lora_alpha: 16
   lora_dropout: 0.05
   target_modules: ['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj']
-  init_lora_weights: "pissa" # Lookup PISSA; converges more rapidly; OLoRA?
+  init_lora_weights: "pissa" # TODO: Lookup PISSA; converges more rapidly; OLoRA?
   task_type: "CAUSAL_LM"
   bias: "none"
+grpo_params:
+  output_dir: './llama31b_instruct_GRPO'
+  huggingface_model_dir: 'llama31b_instruct_GRPO'
+  temperature: 0.9 # High temperature -> high randomness in completions
+  learning_rate: 1e-6
+  beta: 0.01 # Multiplicative factor for KL divergence; high divergence -> high sep between distributions
+  num_train_epochs: 1 # TODO: replace for full run
+  num_generations: None # TODO: must be divisible by num_processes * per_device_train_batch_size
+  per_device_train_batch_size: None # TODO
+  gradient_accumulation_steps: 1 # TODO: defaults at 1
+  gradient_checkpointing: False # TODO: defaults at False, check if needed
+  logging_steps: 10
+  use_vllm: True # TODO: requires checking
+  bf16: True

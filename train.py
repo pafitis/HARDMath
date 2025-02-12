@@ -11,7 +11,7 @@ import yaml
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from evaluation.answer_extraction import extract_final_answer_allform, extract_boxed_content, extract_final_answer
 
-from Levenshtein import distance
+from utls.rl_utils import formating_reward_wrapper, correctness_reward_wrapper
 import numpy as np
 
 ## Config
@@ -20,8 +20,7 @@ with open('configs/config.yaml') as f:
 
 global_params = config.get('global_params')
 lora_params = config.get('lora_params')
-sft_params = config.get('sft_params')
-rl_params = config.get('rl_params')
+grpo_params = config.get('grpo_params')
 
 ## Authentication
 with open('configs/keys.yaml') as f:
@@ -33,13 +32,42 @@ peft_config = LoraConfig(
     lora_alpha=lora_params.get('lora_alpha'),
     lora_dropout=lora_params.get('lora_dropout'),
     target_modules=lora_params.get('target_modules'),
-    task_type=lora_params.get('task_type'),
     init_lora_weights=lora_params.get('init_lora_weights'),
+    task_type=lora_params.get('task_type'),
     bias=lora_params.get('bias'),
 )
 
+grpo_config = GRPOConfig(
+    output_dir=grpo_params.get('output_dir'),
+    
+    temperature=grpo_params.get('temperature'),
+    learning_rate=grpo_params.get('learning_rate'),
+    beta=grpo_params.get('beta'),
+
+    num_train_epochs=grpo_params.get('num_train_epochs'),
+    num_generations=grpo_params.get('num_generations'),
+    per_device_train_batch_size=grpo_params.get('per_device_train_batch_size'),
+    
+    gradient_accumulation_steps=grpo_params.get('gradient_accumulation_steps'),
+    gradient_checkpointing=grpo_params.get('client_checkpointing'),
+
+    logging_steps=grpo_params.get('logging_steps')
+    
+    push_to_hub=grpo_params.get('huggingface_model_dir')
+    push_to_hub_token=keys.get('huggingface_key')
+    bf16=grpo_params.get('bf16'),
+
+    report_to='wandb' # TODO setup weights and biases
+    
+    # TODO: Check usage of vllm
+    # use_vllm=grpo_params.get('use_vllm'),
+)
+
 ## Load model
-tokenizer = AutoTokenizer.from_pretrained(global_params.get('model_id'))
+tokenizer = AutoTokenizer.from_pretrained(
+    global_params.get('model_id'),
+    padding_side='left'
+    )
 model = AutoModelForCausalLM.from_pretrained(
     global_params.get('model_id'),
     torch_dtype=torch.bfloat16,
@@ -50,110 +78,15 @@ model = AutoModelForCausalLM.from_pretrained(
 tokenizer.pad_token_id = tokenizer.eos_token_id
 model.generation_config.pad_token_id = tokenizer.pad_token_id
 
-# RL Training
-## Reward functions
-# TODO ADD KEYARG INPUT FOR REWARD FUNC! WONT WORK OTHERWISE
-def correctness_reward(prediction, ground_truth):
-    # Extract the contents between <answer> ... </answer>
-    start_point = prediction.find('<answer>') + len('<answer>')
-    end_point = prediction.find('</answer>')
-    final_prediction = prediction[start_point:end_point]
+GRPO_trainer = GRPOTrainer(
+    model=model,
+    processing_class=tokenizer,
+    reward_funcs=[formating_reward_wrapper, correctness_reward_wrapper]
+    train_dataset= # TODO: think best way to add dataset? does it load each time?; think about bad entries!
+    args=grpo_config,
+    peft_config=peft_config
+)
 
-    # Will use Levenshtein distance (edit distance)
-    # counts number of additions/removals/edits required
-    # to match the desired string
-
-    lev_distance = distance(final_prediction, ground_truth) # symmetric, order doesn't matter
-    len_maxstring = max(len(final_prediction), len(ground_truth))
-
-    # TODO:
-    # I've observed that we should probably modify the distance
-    # We should probably have 0 reward if required modifications are more than 4-5
-    # and then normalise based on that?
-    return 1.0 - (lev_distance / len_maxstring)
-
-def formating_reward(prediction, eos_token = '<|eot_id|>'):
-    '''
-    The desired format should contain two main blocks
-        <think> ... </think>
-        \n
-        <answer> $$\boxed{...}$$ </answer>
-
-    Thoughts:
-        1. The final answer should use \\boxed LaTeX
-        2. The final answer should be enclosed within <answer> </answer>    
-        3. There should be no \\boxed string within <think> </think>
-        4. EOS should appear after </answer>
-
-    Note:
-        Compared re, .find, `in` approaches 
-        `in` appears fastest, however, `in` requires at least 3 checks which in turn
-        makes it slower than a single regex search
-
-        Missing <> should be captured, as well as wrong order
-        No extra chars before or after
-    '''
-    # Checks general formatting
-    # Check if starts with <think> and ends with </answer>
-    
-    # Checks that \boxed does not appear in <think> </think>
-        # (?:(?!\\boxed\{).)*
-    # Checks that $$\boxed{...} appears in <answer> </answer>
-    # incl. whitepsaces to match HARDMath format
-        # \$\$\\boxed.*\}\$\$
-    # Checks that thinking and answering parts are sep by new line
-        # </think>\\n<answer>
-    pattern = (
-        r'^<think>(?:(?!\\boxed\{).)*</think>\n<answer>\$\$ \\boxed.*\} \$\$</answer>$'
-    )
-    return rl_params.get('reward_format') if re.match(pattern, prediction, re.DOTALL) else 0.0
-
-def total_reward(prediction):
-    correctness = correctness_reward(prediction)
-    formating = formating_reward(prediction)
-
-    return correctness + formating
-
-## Model
-class RLModel(nn.Module):
-
-    def __init__(self):
-        super(RLModel, self).__init__()
-
-    def forward():
-        pass
-
-def prepare_sample(sample):
-    question = sample.question
-    answer = sample.extracted_answer
-
-## RL
-def reinforce(
-        model,
-        optimizer,
-        input_data,
-        training_epochs,
-        max_seq_length,
-):
-    
-    history = []
-
-    for epoch in training_epochs:
-        print(f'Progess: {np.round(100 * (epoch+1) / training_epochs, 2)}')
-
-        for sample in input_data:
-            current_question = sample['question']
-            current_answer = sample['extracted_answer']
-
-            training_args = GRPOConfig(
-                output_dir='llama31b_instruct_GRPO',
-                logging_steps=10,
-                use_vllm=True, # TODO check if this causes issues
-            )
-
-            trainer = GRPOTrainer(
-                model=global_params.get('model_id'),
-                reward_funcs=[formating_reward, correctness_reward],
-                argrs=training_args,
-                train_dataset=
-            )
+if __name__ == '__main__':
+    # TODO: Write main wrapper
+    main()
